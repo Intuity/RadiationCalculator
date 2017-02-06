@@ -1,0 +1,762 @@
+<html>
+<head>
+	<title>Radiator Heat Input Calculator</title>
+	
+	<!-- CSS -->
+	<!-- + Imported Libraries -->
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/rickshaw.min.css" rel="stylesheet">
+    <link href="css/font-awesome.min.css" rel="stylesheet">
+	<!-- + Custom -->
+    <link href="css/main.css" rel="stylesheet">
+	
+	<!-- Javascript -->
+	<!-- + Imported Libraries -->
+	<script type="text/javascript" src="js/jquery-2.1.4.min.js"></script>
+	<script type="text/javascript" src="js/d3.min.js"></script>
+	<script type="text/javascript" src="js/d3.layout.min.js"></script>
+	<script type="text/javascript" src="js/rickshaw.min.js"></script>
+	<!-- + Custom -->
+	<script type="text/javascript" src="js/main.js"></script>
+	<script type="text/javascript" src="js/constants.js"></script>
+	<script type="text/javascript" src="js/radiator.js"></script>
+	<!-- + Comfort -->
+	<script type="text/javascript" src="js/comfort.js"></script>
+	<script type="text/javascript" src="js/comfort/fanger.js"></script>
+	<script type="text/javascript" src="js/comfort/params.js"></script>
+	<script type="text/javascript" src="js/comfort/subjects.js"></script>
+	<script type="text/javascript" src="js/comfort/sunlight.js"></script>
+	<script type="text/javascript" src="js/comfort/utilities.js"></script>
+	
+	<script type="text/javascript">
+	window.addEventListener('load', function() {
+		mode_switch();
+		Calc.run();
+		$('input').on('input', function(){
+			if(document.getElementById('live_update').checked) Calc.run();
+		});
+		$('input').on('change', Calc.run);
+		$('input[type=checkbox]').on('change', Calc.run);
+		$('select').on('change', Calc.run);
+	});
+	// Description of which controls are needed for which mode
+	var modes = {
+		consumption_month: {
+			// Controls
+			control_room_temp: 				false, 	control_initial_room_temp: 		false, 	control_target_room_temp: 		true,
+			control_external_temp: 			true, 	control_radiator_temp: 			false, 	control_room_dimensions: 		true,   
+			control_external_walls: 		true,   control_wall_construction:  	true,	control_window_area: 			true, 	
+			control_window_construction:	true, 	control_radiator_type: 			true, 	control_gas_price: 				true,
+			control_humidity: 				true, 	control_pressure: 				false, 	control_radiator_panel_dimensions: 	false,
+			control_radiator_layers: 		false,  control_velocity:               true,   control_ach:                    true,
+            control_update_live:            true,
+			// Charts
+			display_energy_summary: 		true, 	display_radiator_equilibrium: 	false, 	display_room_equilibrium: 		false,
+			display_net_heat_input: 		true, 	display_time_to_heat: 			false, 	display_temperature_after_time: false,
+			display_comfort_summary: 		true, 	display_radiator_summary: 		false,  display_acknowledgements:       false,
+		},
+		equilibrium_temps: {
+			// Controls
+			control_room_temp: 				true, 	control_initial_room_temp: 		false, 	control_target_room_temp: 		false,
+			control_external_temp: 			false, 	control_radiator_temp: 			true, 	control_room_dimensions: 		true,   
+			control_external_walls: 		true,   control_wall_construction:  	true,	control_window_area: 			true, 	
+			control_window_construction:	true, 	control_radiator_type: 			true, 	control_gas_price: 				false,
+			control_humidity: 				true, 	control_pressure: 				true, 	control_radiator_panel_dimensions: 	false,
+			control_radiator_layers: 		false,  control_velocity:               false,  control_ach:                    true,
+            control_update_live:            true,
+			
+			// Charts
+			display_energy_summary: 		false, 	display_radiator_equilibrium: 	true, 	display_room_equilibrium: 		true,
+			display_net_heat_input: 		false, 	display_time_to_heat: 			false, 	display_temperature_after_time: false,
+			display_comfort_summary: 		false, 	display_radiator_summary: 		false,  display_acknowledgements:       false,
+		},
+		time_to_heat: {
+			// Controls
+			control_room_temp: 				false, 	control_initial_room_temp: 		true, 	control_target_room_temp: 		true,
+			control_external_temp: 			true, 	control_radiator_temp: 			true, 	control_room_dimensions: 		true,   
+			control_external_walls: 		true,   control_wall_construction:  	true,	control_window_area: 			true, 	
+			control_window_construction:	true, 	control_radiator_type: 			true, 	control_gas_price: 				false,
+			control_humidity: 				true, 	control_pressure: 				true, 	control_radiator_panel_dimensions: 	false,
+			control_radiator_layers: 		false,  control_velocity:               false,  control_ach:                    true,
+            control_update_live:            true,
+			// Charts
+			display_energy_summary: 		false, 	display_radiator_equilibrium: 	false, 	display_room_equilibrium: 		false,
+			display_net_heat_input: 		false, 	display_time_to_heat: 			true, 	display_temperature_after_time: true,
+			display_comfort_summary: 		false, 	display_radiator_summary: 		false,  display_acknowledgements:       false,
+		},
+		radiator_output: {
+			// Controls
+			control_room_temp: 				true, 	control_initial_room_temp: 		false, 	control_target_room_temp: 		false,
+			control_external_temp: 			false, 	control_radiator_temp: 			true, 	control_room_dimensions: 		false,   
+			control_external_walls: 		false,  control_wall_construction:  	false,	control_window_area: 			false, 	
+			control_window_construction:	false, 	control_radiator_type: 			false, 	control_gas_price: 				false,
+			control_humidity: 				true, 	control_pressure: 				true, 	control_radiator_panel_dimensions: 	true,
+			control_radiator_layers: 		true,   control_velocity:               false,  control_ach:                    false,
+            control_update_live:            true,
+			// Charts
+			display_energy_summary: 		false, 	display_radiator_equilibrium: 	false, 	display_room_equilibrium: 		false,
+			display_net_heat_input: 		false, 	display_time_to_heat: 			false, 	display_temperature_after_time: false,
+			display_comfort_summary: 		false, 	display_radiator_summary: 		true,   display_acknowledgements:       false,
+		},
+        acknowledgements: {
+			// Controls
+			control_room_temp: 				false, 	control_initial_room_temp: 		false, 	control_target_room_temp: 		false,
+			control_external_temp: 			false, 	control_radiator_temp: 			false, 	control_room_dimensions: 		false,   
+			control_external_walls: 		false,  control_wall_construction:  	false,	control_window_area: 			false, 	
+			control_window_construction:	false, 	control_radiator_type: 			false, 	control_gas_price: 				false,
+			control_humidity: 				false, 	control_pressure: 				false, 	control_radiator_panel_dimensions: false,
+			control_radiator_layers: 		false,  control_velocity:               false,  control_ach:                    false,
+            control_update_live:            false,
+			// Charts
+			display_energy_summary: 		false, 	display_radiator_equilibrium: 	false, 	display_room_equilibrium: 		false,
+			display_net_heat_input: 		false, 	display_time_to_heat: 			false, 	display_temperature_after_time: false,
+			display_comfort_summary: 		false, 	display_radiator_summary: 		false,  display_acknowledgements:       true,
+        }
+	};
+	var mode_switch = function() {
+		var mode = modes[document.getElementById('calc_type').options[document.getElementById('calc_type').selectedIndex].value];
+		var keys = Object.keys(mode);
+		for(var i = 0; i < keys.length; i++) {
+			document.getElementById(keys[i]).style.display = (mode[keys[i]] ? 'block' : 'none');
+		}
+	};
+	</script>
+</head>
+<body>
+	<div id="holder">
+		<div id="leftcolumn">
+			
+			<br />
+			<br />
+			<br />
+			
+			<div id="control_room_temp">
+				<h3>Room Temperature</h3><br />
+				<div class="rangebox well">
+					<div class="holder">
+						<input type="range" id="t_room" min="15" max="30" value="21" step="0.5" oninput="document.getElementById('t_room_value').innerHTML=parseFloat(this.value).toFixed(1);" />
+					</div>
+					<div class="min">15&deg;C</div>
+					<div class="max">30&deg;C</div>
+				</div>
+				T<sub>room</sub> = <span id="t_room_value">21</span>&deg;C
+				<br />
+				<br />
+			</div>
+			<div id="control_initial_room_temp">
+				<h3>Room Initial Temp.</h3><br />
+				<div class="rangebox well">
+					<div class="holder">
+						<input type="range" id="t_room_initial" min="0" max="30" value="15" step="0.5" oninput="document.getElementById('t_room_initial_value').innerHTML=parseFloat(this.value).toFixed(1);" />
+					</div>
+					<div class="min">0&deg;C</div>
+					<div class="max">30&deg;C</div>
+				</div>
+				T<sub>room,initial</sub> = <span id="t_room_initial_value">15</span>&deg;C
+				<br />
+				<br />
+			</div>
+			<div id="control_target_room_temp">
+				<h3>Room Target Temp.</h3><br />
+				<div class="rangebox well">
+					<div class="holder">
+						<input type="range" id="t_room_target" min="0" max="30" value="21" step="0.5" oninput="document.getElementById('t_room_target_value').innerHTML=parseFloat(this.value).toFixed(1);" />
+					</div>
+					<div class="min">0&deg;C</div>
+					<div class="max">30&deg;C</div>
+				</div>
+				T<sub>room,target</sub> = <span id="t_room_target_value">21</span>&deg;C
+				<br />
+				<br />
+			</div>
+			<div id="control_external_temp">
+				<h3>Environment Temperature</h3><br />
+				<div class="rangebox well">
+					<div class="holder">
+						<input type="range" id="t_environment" min="-12" max="30" value="10" step="0.5" oninput="document.getElementById('t_environment_value').innerHTML=parseFloat(this.value).toFixed(1);" />
+					</div>
+					<div class="min">-12&deg;C</div>
+					<div class="max">18&deg;C</div>
+				</div>
+				T<sub>environment</sub> = <span id="t_environment_value">10</span>&deg;C
+				<br />
+				<br />
+			</div>
+			<div id="control_radiator_temp">
+				<h3>Radiator Temperature</h3><br />
+				<div class="rangebox well">
+					<div class="holder">
+						<input type="range" id="t_rad" min="15" max="80" value="50" step="0.5" oninput="document.getElementById('t_rad_value').innerHTML=parseFloat(this.value).toFixed(1);" />
+					</div>
+					<div class="min">15&deg;C</div>
+					<div class="max">80&deg;C</div>
+				</div>
+				T<sub>rad</sub> = <span id="t_rad_value">50</span>&deg;C
+				<br />
+				<br />
+			</div>
+			<div id="control_room_dimensions">
+				<h3>Room Dimensions</h3>
+				<br />
+				<table>
+					<tbody>
+						<tr>
+							<td style="width:70px;">
+								Width
+							</td>
+							<td>
+								<div class="input-group">
+									<input class="form-control" type="number" id="width" step="0.1" value="4" />
+									<div class="input-group-addon">m</div>
+								</div>
+							</td>
+						</tr>
+						<tr>
+							<td>Height</td>
+							<td>
+								<div class="input-group">
+									<input class="form-control" type="number" id="height" step="0.1" value="3" />
+									<div class="input-group-addon">m</div>
+								</div>
+							</td>
+						</tr>
+						<tr>
+							<td>Depth</td>
+							<td>
+								<div class="input-group">
+									<input class="form-control" type="number" id="depth" step="0.1" value="3.5" />
+									<div class="input-group-addon">m</div>
+								</div>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+				<br />
+			</div>
+			<div id="control_external_walls">
+				<h3>External Walls</h3><br />
+				<label>
+					<input type="checkbox" id="wall_north" checked="checked" />
+					North&ensp;
+				</label>
+				<label>
+					<input type="checkbox" id="wall_east" />
+					East&ensp;
+				</label>
+				<label>
+					<input type="checkbox" id="wall_south" />
+					South&ensp;
+				</label>
+				<label>
+					<input type="checkbox" id="wall_west" />
+					West
+				</label>
+				<br /><br />
+			</div>
+			<div id="control_wall_construction">
+				<h3>Wall Construction</h3>
+				<br />
+				<select class="form-control" id="wall_type">
+					<option value="brick_305" selected>Solid Brick (30.5" Thick)</option>
+					<option value="brick_9">Solid Brick (9" Thick)</option>
+					<option value="cav_empty">Cavity Wall (Unfilled, 1900-75)</option>
+					<option value="cav_filled">Cavity Wall (Filled, 1996-2002)</option>
+					<option value="brick_9_w_k18">Solid Brick (9") With Kingspan K18 (67.5mm)</option>
+				</select>
+				<br />
+			</span>
+			<span id="control_window_area">
+				<h3>Total Window Area</h3>
+				<br />
+				<div class="input-group">
+					<input class="form-control" type="number" id="window_area" step="0.1" value="3.6" />
+					<div class="input-group-addon">m<sup>2</sup></div>
+				</div>
+				<br />
+			</div>
+			<div id="control_window_construction">
+				<h3>Window Construction</h3>
+				<br />
+				<select class="form-control" id="window_type">
+					<option value="single">Single Glaze</option>
+					<option value="double">Double Glaze</option>
+					<option value="triple">Triple Glaze</option>
+					<option value="secondary" selected>Secondary Glazing</option>
+				</select>
+				<br />
+			</div>
+			<div id="control_radiator_type">
+				<h3>Radiator Type</h3>
+				<br />
+				<select class="form-control" id="radiator_type">
+					<option value="modern_double" selected>Modern, White, Finned, Double Panel</option>
+					<option value="modern_single">Modern, White, Finned, Single Panel</option>
+					<option value="single_unfinned">White, Unfinned, Single Panel</option>
+				</select>
+				<br />
+			</div>
+			<div id="control_gas_price">
+				<h3>Gas Price</h3>
+				<br />
+				<div class="input-group">
+					<div class="input-group-addon">&pound;</div>
+					<input class="form-control" type="number" id="gas_price" step="0.005" value="0.02" />
+					<div class="input-group-addon">per kWh</div>
+				</div>
+				<br />
+			</div>
+			
+			<div id="control_radiator_panel_dimensions">
+				<h3>Panel Dimensions</h3>
+				<br />
+				<table>
+					<tbody>
+						<tr>
+							<td style="width:70px;">
+								Width
+							</td>
+							<td>
+								<div class="input-group">
+									<input class="form-control" type="number" id="panel_width" step="0.1" value="0.9" />
+									<div class="input-group-addon">m</div>
+								</div>
+							</td>
+						</tr>
+						<tr>
+							<td>Height</td>
+							<td>
+								<div class="input-group">
+									<input class="form-control" type="number" id="panel_height" step="0.1" value="0.3" />
+									<div class="input-group-addon">m</div>
+								</div>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+				<br />
+			</div>
+			
+			<div id="control_radiator_layers">
+				<h3>Layers</h3>
+				<br />
+				<table>
+					<tbody>
+						<tr>
+							<td style="width:100px;">
+								Panel Layers
+							</td>
+							<td>
+								<input class="form-control" type="number" id="panel_count" step="1" value="2" />
+							</td>
+						</tr>
+						<tr>
+							<td>Fin Layers</td>
+							<td>
+								<input class="form-control" type="number" id="fin_layer_count" step="1" value="2" />
+							</td>
+						</tr>
+					</tbody>
+				</table>
+				<br />
+			</div>
+			
+			<div id="control_humidity">
+				<h3>Air Humidity</h3><br />
+				<div class="rangebox well">
+					<div class="holder">
+						<input type="range" id="air_humidity" min="0" max="100" value="50" step="1" oninput="document.getElementById('air_humidity_value').innerHTML=parseFloat(this.value).toFixed(1);" />
+					</div>
+					<div class="min">0%</div>
+					<div class="max">100%</div>
+				</div>
+				Relative Humidity = <span id="air_humidity_value">50</span>%
+				<br />
+				<br />
+			</div>
+			
+			<div id="control_velocity">
+				<h3>Air Velocity</h3><br />
+				<div class="rangebox well">
+					<div class="holder">
+						<input type="range" id="air_velocity" min="0" max="2" value="0.2" step="0.1" oninput="document.getElementById('air_velocity_value').innerHTML=parseFloat(this.value).toFixed(1);" />
+					</div>
+					<div class="min">0 ms<sup>-1</sup></div>
+					<div class="max">2 ms<sup>-2</sup></div>
+				</div>
+				Air Velocity = <span id="air_velocity_value">0.2</span>ms<sup>-1</sup>
+				<br />
+				<br />
+			</div>
+			
+			<div id="control_pressure">
+				<h3>Air Pressure</h3><br />
+				<div class="rangebox well">
+					<div class="holder">
+						<input type="range" id="air_pressure" min="98" max="105" value="101" step="0.5" oninput="document.getElementById('air_pressure_value').innerHTML=parseFloat(this.value).toFixed(1);" />
+					</div>
+					<div class="min">98 kPa</div>
+					<div class="max">105 kPa</div>
+				</div>
+				Pressure = <span id="air_pressure_value">101</span> kPa
+				<br />
+				<br />
+			</div>
+			
+			<div id="control_ach">
+				<h3>Air Changes per Hour</h3><br />
+				<div class="rangebox well">
+					<div class="holder">
+						<input type="range" id="number_ach" min="0" max="5" value="1.5" step="0.1" oninput="document.getElementById('number_ach_value').innerHTML=parseFloat(this.value).toFixed(1);" />
+					</div>
+					<div class="min">0</div>
+					<div class="max">5</div>
+				</div>
+				Changes per Hour = <span id="number_ach_value">1.5</span>
+				<br />
+				<br />
+			</div>
+			
+			<div id="control_update_live">
+				<h3>Update Live</h3><br />
+				<label>
+					<input type="checkbox" id="live_update" />
+					Recalculate as controls move
+				</label>
+				<br />
+				<br />
+			</div>
+			
+		</div>
+		
+		<div id="rightcolumn">
+			
+			<div class="styledbar">
+				<form class="form-inline" style="padding:0;margin:0;">
+					<div class="form-group">
+						<label for="calc_type">Select Calculation Type&emsp;</label>
+						<select class="form-control" id="calc_type" onchange="mode_switch();">
+							<option value="consumption_month" selected>Monthly Consumption</option>
+							<option value="equilibrium_temps">Equilibrium Temperatures</option>
+							<option value="time_to_heat">Time To Heat</option>
+							<option value="radiator_output">Radiator Output Estimator</option>
+							<option value="acknowledgements">Acknowledgements</option>
+						</select>
+					</div>
+				</form>
+			</div>
+			
+			<br />
+			<br />
+			
+			<div id="display_energy_summary">
+				<h2>Energy Summary</h2>
+				<table class="table">
+					<tbody>
+						<tr>
+							<td style="width:300px;">Required Radiator Temperature</td>
+							<td style="width:150px;" id="required_rad_temp">-</td>
+							<td>&deg;C</td>
+						</tr>
+						<tr>
+							<td style="width:300px;">Energy Input Per Day</td>
+							<td style="width:150px;" id="energy_input_day">-</td>
+							<td>kWh</td>
+						</tr>
+						<tr>
+							<td>Energy Input Per Month</td>
+							<td id="energy_input_month">-</td>
+							<td>kWh</td>
+						</tr>
+						<tr>
+							<td>Energy Cost Per Month</td>
+							<td>&pound;<span id="energy_cost_month"></span></td>
+							<td></td>
+						</tr>
+						<tr>
+							<td>CO<sub>2</sub> Emission Per Month</td>
+							<td id="co2_emit_month">-</td>
+							<td>kilogram</td>
+						</tr>
+						<tr>
+							<td><em>Energy Breakdown</em></td>
+							<td></td>
+							<td></td>
+						</tr>
+					</tbody>
+				</table>
+				<table class="table">
+					<tbody>
+						<tr>
+                            <td style="width:20px;"></td>
+							<td style="width:300px;">Radiator Heat Input</td>
+							<td style="width:150px;" id="breakdown_heat_input">-</td>
+							<td style="width:100px;">W</td>
+                            <td style="width:150px;"></td>
+                            <td></td>
+						</tr>
+						<tr>
+                            <td style="width:20px;"></td>
+							<td>Losses Through Walls</td>
+							<td id="breakdown_heat_walls">-</td>
+							<td>W</td>
+                            <td id="breakdown_percentage_walls"></td>
+                            <td>%</td>
+						</tr>
+						<tr>
+                            <td style="width:20px;"></td>
+							<td>Losses Through Windows</td>
+							<td id="breakdown_heat_windows">-</td>
+							<td>W</td>
+                            <td id="breakdown_percentage_windows"></td>
+                            <td>%</td>
+						</tr>
+						<tr>
+                            <td style="width:20px;"></td>
+							<td>Losses Through Air Exchange</td>
+							<td id="breakdown_heat_ach">-</td>
+							<td>W</td>
+                            <td id="breakdown_percentage_ach"></td>
+                            <td>%</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+			
+			<div id="display_comfort_summary">
+				<h2>Comfort Summary</h2>
+				<table class="table" style="background-color:white;border:1px solid #CCC;">
+					<thead>
+						<tr>
+							<td style="width:16.6%;line-height:40px;text-align:center;"><img width="50" src="images/Person_Sleeping.png" /><br />Sleeping</td>
+							<td style="width:16.6%;line-height:40px;text-align:center;"><img width="50" src="images/Person_Naked.png" /><br />Naked</td>
+							<td style="width:16.6%;line-height:40px;text-align:center;"><img width="50" src="images/Person_Office.png" /><br />Working</td>
+							<td style="width:16.6%;line-height:40px;text-align:center;"><img width="50" src="images/Person_Jumper.png" /><br />Working</td>
+							<td style="width:16.6%;line-height:40px;text-align:center;"><img width="50" src="images/Person_Coat.png" /><br />Walking</td>
+							<td style="line-height:40px;text-align:center;"><img width="50" src="images/Person_Running.png" /><br />Exercising</td>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td style="text-align:center;line-height:30px;font-size:20px;">
+								<i id="comfort_sleeping_result_icon" class="fa fa-circle-o"></i><br />
+								<span id="comfort_sleeping_result_text">Neutral</span>
+							</td>
+							<td style="text-align:center;line-height:30px;font-size:20px;">
+								<i id="comfort_naked_result_icon" class="fa fa-circle-o"></i><br />
+								<span id="comfort_naked_result_text">Neutral</span>
+							</td>
+							<td style="text-align:center;line-height:30px;font-size:20px;">
+								<i id="comfort_office_result_icon" class="fa fa-circle-o"></i><br />
+								<span id="comfort_office_result_text">Neutral</span>
+							</td>
+							<td style="text-align:center;line-height:30px;font-size:20px;">
+								<i id="comfort_office_jumper_result_icon" class="fa fa-circle-o"></i><br />
+								<span id="comfort_office_jumper_result_text">Neutral</span>
+							</td>
+							<td style="text-align:center;line-height:30px;font-size:20px;">
+								<i id="comfort_coat_result_icon" class="fa fa-circle-o"></i><br />
+								<span id="comfort_coat_result_text">Neutral</span>
+							</td>
+							<td style="text-align:center;line-height:30px;font-size:20px;">
+								<i id="comfort_running_result_icon" class="fa fa-circle-o"></i><br />
+								<span id="comfort_running_result_text">Neutral</span>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+                <div style="width:100%;text-align:center;font-style:italic;font-size:12px;padding-top:5px;">
+                    This is an estimate of the perceived comfort level for a human occupant at the specified room temperature.
+                </div>
+			</div>
+			
+			<div id="display_net_heat_input">
+				<h2>Net Heat Input To The Room</h2>
+	            <div id="heat_flux_plot_holder" class="chart_holder">
+	                <div id="heat_flux_plot_y_axis" class="y_axis"></div>
+	                <div class="y_axis_title">Heat Flux (W)</div>
+	                <div id="heat_flux_plot" class="chart"></div>
+	                <div id="heat_flux_plot_x_axis" class="x_axis"></div>
+	                <div class="x_axis_title">Radiator Temperature (&deg;C)</div>
+	            </div>
+			</div>
+			
+			<div id="display_radiator_equilibrium">
+				<h2>Equilibrium Radiator Temperature For T<sub>room</sub></h2>
+	            <div id="radiator_equil_plot_holder" class="chart_holder">
+	                <div id="radiator_equil_plot_y_axis" class="y_axis"></div>
+	                <div class="y_axis_title">Radiator Temperature (&deg;C)</div>
+	                <div id="radiator_equil_plot" class="chart"></div>
+	                <div id="radiator_equil_plot_x_axis" class="x_axis"></div>
+	                <div class="x_axis_title">External Temperature (&deg;C)</div>
+	            </div>
+			</div>
+			
+			<div id="display_room_equilibrium">
+				<h2>Equilibrium Room Temperature For T<sub>rad</sub></h2>
+	            <div id="room_equil_plot_holder" class="chart_holder">
+	                <div id="room_equil_plot_y_axis" class="y_axis"></div>
+	                <div class="y_axis_title">Room Temperature (&deg;C)</div>
+	                <div id="room_equil_plot" class="chart"></div>
+	                <div id="room_equil_plot_x_axis" class="x_axis"></div>
+	                <div class="x_axis_title">External Temperature (&deg;C)</div>
+	            </div>
+			</div>
+			
+			<div id="display_time_to_heat">
+				<h2>Time to Heat Room from T<sub>room,initial</sub> to T<sub>room,target</sub></h2>
+	            <div id="heating_times_plot_holder" class="chart_holder">
+	                <div id="heating_times_plot_y_axis" class="y_axis"></div>
+	                <div class="y_axis_title">Time (Minutes)</div>
+	                <div id="heating_times_plot" class="chart"></div>
+	                <div id="heating_times_plot_x_axis" class="x_axis"></div>
+	                <div class="x_axis_title">External Temperature (&deg;C)</div>
+	            </div>
+			</div>
+			
+			<div id="display_temperature_after_time">
+				<h2>Temperature Over Time Heating from T<sub>room,initial</sub></h2>
+	            <div id="heating_temperature_times_plot_holder" class="chart_holder">
+	                <div id="heating_temperature_times_plot_y_axis" class="y_axis"></div>
+	                <div class="y_axis_title">Room Temperature (&deg;C)</div>
+	                <div id="heating_temperature_times_plot" class="chart"></div>
+	                <div id="heating_temperature_times_plot_x_axis" class="x_axis"></div>
+	                <div class="x_axis_title">Time Heating (Minutes)</div>
+	            </div>
+			</div>
+			
+			<div id="display_radiator_summary">
+				<h2>Radiator Output Summary</h2>
+				<h3>Key Results</h3><br />
+				<table class="table">
+					<tbody>
+						<tr>
+							<td style="width:300px;">Convective Heat Output Per &deg;C</td>
+							<td style="width:150px;" id="radiator_conv_output_per_deg">-</td>
+							<td>W/K</td>
+							<td></td>
+						</tr>
+						<tr>
+							<td>Convective Output @ &Delta;T</td>
+							<td id="radiator_conv_output">-</td>
+							<td>W</td>
+							<td id="radiator_conv_percentage"></td>
+						</tr>
+						<tr>
+							<td>Radiative Output @ &Delta;T</td>
+							<td id="radiator_rdtd_output">-</td>
+							<td>W</td>
+							<td id="radiator_rdtd_percentage"></td>
+						</tr>
+						<tr>
+							<td>Total Output @ &Delta;T</td>
+							<td id="radiator_total_output">-</td>
+							<td>W</td>
+							<td></td>
+						</tr>
+					</tbody>
+				</table>
+				<br />
+				<h3>Additional Calculation Details</h3><br />
+				<table class="table">
+					<tbody>
+						<tr>
+							<td style="width:300px;">Total Panel Area</td>
+							<td style="width:150px;" id="radiator_panel_area">-</td>
+							<td>m<sup>2</sup></td>
+						</tr>
+						<tr>
+							<td>Total Fin Area</td>
+							<td id="radiator_fin_area">-</td>
+							<td>m<sup>2</sup></td>
+						</tr>
+						<tr>
+							<td>Total Heated Area</td>
+							<td id="radiator_total_area">-</td>
+							<td>m<sup>2</sup></td>
+						</tr>
+						<tr>
+							<td>Film Temperature</td>
+							<td id="radiator_film_temperature">-</td>
+							<td>&deg;C</td>
+						</tr>
+						<tr>
+							<td>Grashof Number</td>
+							<td id="radiator_grashof">-</td>
+							<td>x10<sup>6</sup></td>
+						</tr>
+						<tr>
+							<td>Prandtl Number</td>
+							<td id="radiator_prandtl">-</td>
+							<td>Dimensionless</td>
+						</tr>
+						<tr>
+							<td>Raleigh Number</td>
+							<td id="radiator_raleigh">-</td>
+							<td>x10<sup>6</sup></td>
+						</tr>
+						<tr>
+							<td>Nusselt Number</td>
+							<td id="radiator_nusselt">-</td>
+							<td>Dimensionless</td>
+						</tr>
+						<tr>
+							<td>Convective Heat Transfer Coefficient</td>
+							<td id="radiator_convective_coeff">-</td>
+							<td>W/m<sup>2</sup>K</td>
+						</tr>
+					</tbody>
+				</table>
+				<br />
+				<h3>Assumptions Made</h3><br />
+				This calculation is only an estimate and makes a number of assumptions that are listed below:<br /><br />
+				<ul>
+					<li>That the radiator is at a uniform temperature</li>
+					<li>That the panels of the radiator have negligible thickness &amp; so neglects sideways output</li>
+					<li>That the fins are a standard size of 3.5 cm deep, 1 cm wide and at 1 cm spacings</li>
+					<li>That the fins are inset into the radiator body by 1 cm top and bottom and 7.5 cm left and right</li>
+					<li>That the radiator can be assumed to act as a vertical plate under natural convection</li>
+				</ul>
+				<br />
+				<br />
+			</div>
+            
+			<div id="display_acknowledgements">
+				<h2>Acknowledgements</h2>
+				This calculation tool uses data and algorithms from a number of sources, they are credited here:<br /><br />
+                <h3>Data Sources</h3>
+				<ul>
+					<li>Properties of dry air: <a href="http://www.engineeringtoolbox.com/dry-air-properties-d_973.html">www.engineeringtoolbox.com/dry-air-properties-d_973.html</a></li>
+                    <li>Vapor saturation pressures: <a href="http://www.engineeringtoolbox.com/relative-humidity-air-d_687.html">www.engineeringtoolbox.com/relative-humidity-air-d_687.html</a></li>
+                    <li>U-values of common wall constructions: <a href="http://www.thegreenage.co.uk/getting-to-grips-with-u-values">www.thegreenage.co.uk/getting-to-grips-with-u-values</a></li>
+                    <li>U-value of Kingspan K18: <a href="http://www.kingspaninsulation.co.uk/Products/Kooltherm/Kooltherm-K18-Insulated-Plasterboard/Overview.aspx">www.kingspaninsulation.co.uk/Products/Kooltherm/Kooltherm-K18-Insulated-Plasterboard/Overview.aspx</a></li>
+                    <li>U-value of secondary glazing units: <a href="http://www.buildingconservation.com/articles/secondary-glazing/secondary-glazing.htm">www.buildingconservation.com/articles/secondary-glazing/secondary-glazing.htm</a></li>
+                    <li>U-value of triple glazing units: <a href="http://www.bre.co.uk/page.jsp?id=3388">www.bre.co.uk/page.jsp?id=3388</a></li>
+                    <li>Activity metabolic equivalent and clothing insulation values: ISO-7730:2005</li>
+                    <li>Metabolic rates: <a href="http://www.engineeringtoolbox.com/met-metabolic-rate-d_733.html">www.engineeringtoolbox.com/met-metabolic-rate-d_733.html</a></li>
+                    <li>Tog values: <a href="https://en.wikipedia.org/wiki/Tog">en.wikipedia.org/wiki/Tog</a></li>
+                    <li>CO<sub>2</sub> per kWh of gas burnt: <a href="http://www.carbonindependent.org/sources_home_energy.html">www.carbonindependent.org/sources_home_energy.html</a></li>
+				</ul>
+                <h3>Algorithms</h3>
+                <ul>
+                    <li>Hours of sunlight algorithm: <a href="https://en.wikipedia.org/wiki/Sunrise_equation">en.wikipedia.org/wiki/Sunrise_equation</a></li>
+                    <li>Thermal comfort equations: ISO-7730:2005</li>
+                    <li>Saturation vapor pressure calculation: <a href="https://en.wikipedia.org/wiki/Antoine_equation">en.wikipedia.org/wiki/Antoine_equation</a></li>
+                    <li>Absolute humidity algorithm: <a href="http://planetcalc.com/2167/">planetcalc.com/2167/</a></li>
+                    <li>Initial guess of clothing surface temperature: <a href="http://sustainabilityworkshop.autodesk.com/buildings/human-thermal-comfort">sustainabilityworkshop.autodesk.com/buildings/human-thermal-comfort</a></li>
+                </ul>
+                <h3>Libraries</h3>
+                <ul>
+                    <li>jQuery: <a href="http://jquery.com">jquery.com</a></li>
+                    <li>Rickshaw.js: <a href="http://code.shutterstock.com/rickshaw/">code.shutterstock.com/rickshaw/</a></li>
+                    <li>D3.js: <a href="http://d3js.org">d3js.org</a></li>
+                    <li>Bootstrap: <a href="http://getbootstrap.com">getbootstrap.com</a></li>
+                    <li>FontAwesome: <a href="http://fontawesome.io">fontawesome.io</a></li>
+                </ul>
+				<br />
+				<br />
+			</div>
+			
+		</div>
+	</div>
+</body>
+</html>
